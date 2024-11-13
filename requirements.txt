@@ -1,0 +1,3 @@
+# Core Dependencies
+imaplib2>=3.5
+python-dateutil>=2.8.2

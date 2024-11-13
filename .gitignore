@@ -1,0 +1,6 @@
+logs/
+*.db
+emails.json
+__pycache__/
+*.pyc
+.env
