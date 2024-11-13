@@ -144,9 +144,9 @@ For support, please open an issue in the GitHub repository or contact the mainta
 
 ## Author
 
-[Your Name]
-- GitHub: [@yourusername](https://github.com/yourusername)
-- Email: your.email@example.com
+Olenius
+- GitHub: [@Olenius](https://github.com/Olenius)
+- Email: infawn@gmail.com
 
 ## Disclaimer
 
