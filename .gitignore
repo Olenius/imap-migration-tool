@@ -4,3 +4,5 @@ emails.json
 __pycache__/
 *.pyc
 .env
+
+.DS_Store
