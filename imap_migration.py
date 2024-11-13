@@ -7,11 +7,44 @@ import socket
 import sqlite3
 import time
 import logging
+import os
 from email import header
 from typing import List, Dict
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+def setup_logger(source_email: str) -> logging.Logger:
+    """Setup logger for both file and console output."""
+    # Create logs directory if it doesn't exist
+    logs_dir = 'logs'
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+    
+    # Create a logger with the source email as the name
+    logger = logging.getLogger(source_email)
+    logger.setLevel(logging.INFO)
+    
+    # Clear any existing handlers to avoid duplicates
+    if logger.handlers:
+        logger.handlers.clear()
+    
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    # File handler - use source_email in filename
+    safe_email = source_email.replace('@', '_at_').replace('.', '_')
+    file_handler = logging.FileHandler(os.path.join(logs_dir, f'{safe_email}.log'))
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    
+    # Add both handlers to logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
 
 def decode_subject(subject):
     """Decode MIME-encoded subject to Unicode."""
@@ -23,7 +56,7 @@ def decode_subject(subject):
         )
         return decoded_subject
     except Exception as e:
-        # logger.warning(f"Failed to decode subject '{subject}': {str(e)}")
+        # self.logger.warning(f"Failed to decode subject '{subject}': {str(e)}")
         return subject  # Fallback to original if decoding fails
     
 def decode_folder_name(encoded_name):
@@ -52,7 +85,7 @@ def decode_folder_name(encoded_name):
         
         return decoded_text
     except Exception as e:
-        # logger.warning(f"Error decoding: {str(e)}")
+        # self.logger.warning(f"Error decoding: {str(e)}")
         pass
 
     return raw_encoded_name
@@ -66,6 +99,8 @@ class EmailConfig:
         self.dest_email = config['dest_email']
         self.dest_password = config['dest_password']
 
+        self.logger = setup_logger(self.source_email)
+
 def load_email_configs(config_file: str) -> List[EmailConfig]:
     """Load email configurations from JSON file."""
     try:
@@ -73,7 +108,7 @@ def load_email_configs(config_file: str) -> List[EmailConfig]:
             configs = json.load(f)
             return [EmailConfig(config) for config in configs]
     except Exception as e:
-        logger.error(f"Error loading config file: {str(e)}")
+        logging.error(f"Error loading config file: {str(e)}")
         raise
 
 class IMAPMigration:
@@ -85,6 +120,7 @@ class IMAPMigration:
         self.dest_user = email_config.dest_email
         self.dest_pass = email_config.dest_password
         self.db_path = db_path
+        self.logger = email_config.logger
         
         # Initialize connections
         self.source = None
@@ -114,15 +150,15 @@ class IMAPMigration:
             
             self.source = imaplib.IMAP4_SSL(self.source_host, ssl_context=context, timeout=30)
             self.source.login(self.source_user, self.source_pass)
-            logger.info("Successfully connected to source IMAP server")
+            self.logger.info("Successfully connected to source IMAP server")
 
             self.dest = imaplib.IMAP4_SSL(self.dest_host, ssl_context=context, timeout=30)
             self.dest.login(self.dest_user, self.dest_pass)
-            logger.info("Successfully connected to destination IMAP server")
+            self.logger.info("Successfully connected to destination IMAP server")
             
             return True
         except Exception as e:
-            logger.error(f"Connection error: {str(e)}")
+            self.logger.error(f"Connection error: {str(e)}")
             return False
     
     def reconnect(self, folder=None):
@@ -142,7 +178,7 @@ class IMAPMigration:
         if folder:
             # Re-select the folder after reconnecting
             self.source.select(folder)
-            logger.info(f"Re-selected folder: {decode_folder_name(folder)}")
+            self.logger.info(f"Re-selected folder: {decode_folder_name(folder)}")
         
         return True
     
@@ -175,9 +211,9 @@ class IMAPMigration:
         """Create folder in destination if it doesn't exist."""
         try:
             self.dest.create(folder)
-            logger.info(f"Created folder: {decode_folder_name(folder)}")
+            self.logger.info(f"Created folder: {decode_folder_name(folder)}")
         except:
-            logger.info(f"Folder already exists: {decode_folder_name(folder)}")
+            self.logger.info(f"Folder already exists: {decode_folder_name(folder)}")
     
     def migrate_folder(self, folder):
         """Migrate messages from one folder to another, avoiding duplicates."""
@@ -189,7 +225,7 @@ class IMAPMigration:
             # Get already migrated UIDs
             migrated_uids = self.get_migrated_uids(folder)
             
-            logger.info(f"Migrating {decode_folder_name(folder)}, total messages: {len(message_nums)}")
+            self.logger.info(f"Migrating {decode_folder_name(folder)}, total messages: {len(message_nums)}")
             
             # Select destination folder
             self.dest.select(folder)
@@ -200,17 +236,17 @@ class IMAPMigration:
                 uid = uid_data[0].decode().split()[2]  # Extract UID
                 
                 if uid in migrated_uids:
-                    logger.info(f"Skipping already migrated message UID {uid} in folder {decode_folder_name(folder)}")
+                    self.logger.info(f"Skipping already migrated message UID {uid} in folder {decode_folder_name(folder)}")
                     continue  # Skip already migrated message
                 
                 # Fetch and migrate the message with retry logic
                 success = self.migrate_message(num, folder, uid)
                 if not success:
-                    logger.error(f"Failed to migrate message UID {uid} in folder {decode_folder_name(folder)} after multiple attempts.")
+                    self.logger.error(f"Failed to migrate message UID {uid} in folder {decode_folder_name(folder)} after multiple attempts.")
                 
             return True
         except Exception as e:
-            logger.error(f"Error migrating folder {decode_folder_name(folder)}: {str(e)}")
+            self.logger.error(f"Error migrating folder {decode_folder_name(folder)}: {str(e)}")
             return False
 
     def migrate_message(self, num, folder, uid, retries=3):
@@ -231,27 +267,27 @@ class IMAPMigration:
                 subject = decode_subject(msg['subject']) if msg['subject'] else "(No Subject)"
                 exit
 
-                logger.info(f"Successfully migrated message UID {uid} ({subject}) in folder {decode_folder_name(folder)}")
+                self.logger.info(f"Successfully migrated message UID {uid} ({subject}) in folder {decode_folder_name(folder)}")
                 
                 return True
             except socket.error as e:
                 if e.errno == 54:  # Connection reset by peer
-                    logger.error(f"Connection reset by peer for message UID {uid}, attempt {attempt + 1}/{retries}. Reconnecting...")
+                    self.logger.error(f"Connection reset by peer for message UID {uid}, attempt {attempt + 1}/{retries}. Reconnecting...")
                     self.reconnect(folder)  # Attempt reconnect and retry
                     time.sleep(2 ** attempt)  # Exponential backoff
                 else:
-                    logger.warning(f"Socket error for message UID {uid}: {e}")
+                    self.logger.warning(f"Socket error for message UID {uid}: {e}")
                     return False
             except Exception as e:
-                logger.warning(f"Attempt {attempt + 1}/{retries} failed for message UID {uid}: {e}")
+                self.logger.warning(f"Attempt {attempt + 1}/{retries} failed for message UID {uid}: {e}")
                 
                 if attempt < retries - 1:
                     if "BAD_LENGTH" in str(e) or "socket error" in str(e):
-                        logger.info("Attempting to reconnect and retry...")
+                        self.logger.info("Attempting to reconnect and retry...")
                         self.reconnect(folder)  # Reconnect in case of SSL/socket errors
                     time.sleep(2 ** attempt)  # Exponential backoff
                 else:
-                    logger.error(f"Final failure migrating message UID {uid}: {e}")
+                    self.logger.error(f"Final failure migrating message UID {uid}: {e}")
                     return False
 
     def migrate_all(self):
@@ -265,7 +301,7 @@ class IMAPMigration:
                 self.create_folder(folder)
                 self.migrate_folder(folder)
             
-            logger.info("Migration completed")
+            self.logger.info("Migration completed")
         finally:
             if self.source:
                 self.source.logout()
@@ -282,9 +318,9 @@ if __name__ == "__main__":
         
         # Process each email configuration
         for config in email_configs:
-            logger.info(f"Starting migration for {config.source_email} -> {config.dest_email}")
+            config.logger.info(f"Starting migration for {config.source_email} -> {config.dest_email}")
             migrator = IMAPMigration(config)
             migrator.migrate_all()
             
     except Exception as e:
-        logger.error(f"Migration failed: {str(e)}")
+        logging.error(f"Migration failed: {str(e)}")
