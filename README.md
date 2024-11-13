@@ -25,7 +25,7 @@ A robust Python tool for migrating emails between IMAP servers with support for 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/imap-migration-tool.git
+git clone https://github.com/Olenius/imap-migration-tool.git
 cd imap-migration-tool
 ```
 
