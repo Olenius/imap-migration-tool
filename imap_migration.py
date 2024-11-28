@@ -137,6 +137,7 @@ class IMAPMigration:
                 CREATE TABLE IF NOT EXISTS migrated_messages (
                     folder TEXT,
                     uid TEXT,
+                    source_email TEXT,
                     dest_email TEXT,
                     PRIMARY KEY (folder, uid, dest_email)
                 )
@@ -187,8 +188,8 @@ class IMAPMigration:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT uid FROM migrated_messages WHERE folder = ? AND dest_email = ?",
-                (folder, self.dest_user)
+                "SELECT uid FROM migrated_messages WHERE folder = ? AND source_email = ? AND dest_email = ?",
+                (folder, self.source_user, self.dest_user)
             )
             return {row[0] for row in cursor.fetchall()}
     
@@ -197,8 +198,8 @@ class IMAPMigration:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT OR IGNORE INTO migrated_messages (folder, uid, dest_email) VALUES (?, ?, ?)",
-                (folder, uid, self.dest_user)
+                "INSERT OR IGNORE INTO migrated_messages (folder, uid, source_email, dest_email) VALUES (?, ?, ?, ?)",
+                (folder, uid, self.source_user, self.dest_user)
             )
             conn.commit()
 
@@ -244,6 +245,7 @@ class IMAPMigration:
                 if not success:
                     self.logger.error(f"Failed to migrate message UID {uid} in folder {decode_folder_name(folder)} after multiple attempts.")
                 
+            self.logger.info(f"Folder {decode_folder_name(folder)} migrated, total messages: {len(message_nums)}")
             return True
         except Exception as e:
             self.logger.error(f"Error migrating folder {decode_folder_name(folder)}: {str(e)}")
