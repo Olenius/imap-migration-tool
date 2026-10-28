@@ -2,6 +2,8 @@
 
 A robust Python tool for migrating emails between IMAP servers with support for multiple email accounts, folder structure preservation, and progress tracking. The tool handles connection issues gracefully, supports resuming interrupted migrations, and provides detailed logging for each migration process.
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Donate-Buy%20Me%20A%20Coffee-orange?style=flat&logo=buymeacoffee)](https://buymeacoffee.com/olenius)
+
 ## Features
 
 - 📧 Migrate multiple email accounts in sequence
@@ -151,3 +153,5 @@ Olenius
 ## Disclaimer
 
 This tool is provided as-is with no warranties. Always test with a small batch of emails first and ensure you have backups before performing large migrations.
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Donate-Buy%20Me%20A%20Coffee-orange?style=flat&logo=buymeacoffee)](https://buymeacoffee.com/olenius)
